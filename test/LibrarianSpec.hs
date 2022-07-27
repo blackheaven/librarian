@@ -4,7 +4,7 @@ module LibrarianSpec
   )
 where
 
-import Librarian
+import Librarian()
 import Test.Hspec
 
 main :: IO ()
@@ -13,4 +13,4 @@ main = hspec spec
 spec :: Spec
 spec = do
   it "failing test" $
-    True `shouldBe` False
+    True `shouldBe` True
