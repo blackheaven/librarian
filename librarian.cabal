@@ -10,7 +10,7 @@ license-file:        LICENSE
 synopsis:            Move/rename according a set of rules
 description:         Move/rename according a set of rules.
 Homepage:            http://github.com/blackheaven/librarian
-tested-with:         GHC==9.2.2, GHC==9.0.2, GHC==8.10.7
+tested-with:         GHC==9.2.2
 
 library
   default-language:   Haskell2010
