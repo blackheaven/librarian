@@ -17,12 +17,12 @@ library
   build-depends:
       base == 4.*
     , containers
+    , dhall
     , directory
     , easy-file
     , Glob
     , pretty-show
     , regexpr
-    , text
   hs-source-dirs: src
   exposed-modules:
       Librarian
@@ -89,8 +89,8 @@ test-suite librarian-test
     , librarian
     , containers
     , directory
-    , Glob
     , easy-file
+    , Glob
     , hspec
     , hspec-core
     , hspec-discover
@@ -127,5 +127,6 @@ executable librarian
   build-depends:
       base
     , librarian
-    , text
+    , dhall
+    , optparse-applicative
   default-language: Haskell2010

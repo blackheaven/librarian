@@ -28,8 +28,9 @@ import Data.Function (on)
 import Data.Functor (($>))
 import Data.List (find, nubBy, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust)
-import GHC.Exts (IsString)
+import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
+import Data.String (IsString)
+import Dhall (FromDhall)
 import GHC.Generics (Generic)
 import System.Directory (createDirectoryIfMissing, doesFileExist, renameFile)
 import System.EasyFile (splitFileName)
@@ -44,19 +45,25 @@ data Rule = Rule
   }
   deriving stock (Eq, Show, Generic)
 
-newtype RuleName = RuleName String
+instance FromDhall Rule
+
+newtype RuleName = RuleName {getRuleName :: String}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Show, IsString)
+  deriving (FromDhall) via String
 
 newtype Matcher = Matcher {matchPattern :: String}
   deriving stock (Generic)
   deriving newtype (Eq, Ord, Show, IsString)
+  deriving (FromDhall) via String
 
 data Mover = Mover
   { inputPattern :: String,
     newName :: String
   }
   deriving stock (Eq, Show, Generic)
+
+instance FromDhall Mover
 
 type CollectedFiles = Map.Map FilePath Rule
 
@@ -93,8 +100,8 @@ planMoves = map (uncurry planMove) . Map.toList
 displayPlan :: [Move] -> IO ()
 displayPlan xs = do
   forM_ xs $ \Move {..} ->
-    putStrLn $ "[" <> show (name rule) <> "] '" <> original <> "' -> '" <> fromMaybe "UNABLE TO REPLACE" new <> "'"
-  let unrenamed = nubBy ((==) `on` name) $ sortOn name $ map rule $ filter (isJust . new) xs
+    putStrLn $ "[" <> getRuleName (name rule) <> "] '" <> original <> "' -> '" <> fromMaybe "UNABLE TO REPLACE" new <> "'"
+  let unrenamed = nubBy ((==) `on` name) $ sortOn name $ map rule $ filter (isNothing . new) xs
   unless (null unrenamed) $ do
     putStrLn "Unable to generate a new name for:"
     forM_ unrenamed pPrint

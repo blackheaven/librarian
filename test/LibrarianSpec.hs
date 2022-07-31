@@ -4,10 +4,12 @@ module LibrarianSpec
   )
 where
 
+import Control.Monad
 import qualified Data.Map.Strict as Map
 import Librarian
 import System.Directory
 import System.EasyFile
+import System.FilePath.Glob
 import System.IO.Temp
 import Test.Hspec
 
@@ -36,11 +38,15 @@ spec = do
       planMoves (Map.fromList [("./in/1.png", rule1All)])
         `shouldBe` [Move "./in/1.png" Nothing rule1All]
   describe "runPlan" $ do
-    it "Overriding path should block" $
-      withFiles ["in/0.txt", "in/sub/0.txt"] (fetchRulesOn "." [overridingRule] >>= runPlan . planMoves)
+    let moveAll = fetchRulesOn "." [overridingRule] >>= runPlan . planMoves
+    it "Overriding paths should block the second move" $
+      withFiles ["in/0.txt", "in/sub/0.txt"] moveAll
         `shouldReturn` [ (Action "./in/0.txt" "out/0.txt", Done),
                          (Action "./in/sub/0.txt" "out/0.txt", Existing)
                        ]
+    it "Overriding paths should keep the second file" $
+      withFiles ["in/0.txt", "in/sub/0.txt"] (moveAll >> listFiles)
+        `shouldReturn` ["./out/0.txt", "./in/sub/0.txt"]
 
 withFiles :: [FilePath] -> IO a -> IO a
 withFiles files act =
@@ -80,3 +86,6 @@ overridingRule =
       match = "**/*.txt",
       movers = [Mover "^.*/([^\\/]+)$" "out/\\1"]
     }
+
+listFiles :: IO [FilePath]
+listFiles = glob "./**/*" >>= filterM doesFileExist
