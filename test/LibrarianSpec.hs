@@ -5,6 +5,7 @@ module LibrarianSpec
 where
 
 import Control.Monad
+import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Librarian
 import System.Directory
@@ -31,22 +32,22 @@ spec = do
   describe "planMoves" $ do
     it "Images should be moved, texts should have their extension changed" $
       planMoves (Map.fromList [("./in/sub/0.jpg", rule0Jpg), ("./in/1.txt", rule1All)])
-        `shouldBe` [ Move "./in/1.txt" (Just "./in/1.TXT") rule1All,
-                     Move "./in/sub/0.jpg" (Just "out/pics/0.jpg") rule0Jpg
+        `shouldBe` [ ResolvedMove "./in/1.txt" (Just "./in/1.TXT") rule1All,
+                     ResolvedMove "./in/sub/0.jpg" (Just "out/pics/0.jpg") rule0Jpg
                    ]
-    it "Non-matching mover should be nothing" $
+    it "Non-matching action should be nothing" $
       planMoves (Map.fromList [("./in/1.png", rule1All)])
-        `shouldBe` [Move "./in/1.png" Nothing rule1All]
+        `shouldBe` [ResolvedMove "./in/1.png" Nothing rule1All]
   describe "runPlan" $ do
     let moveAll = fetchRulesOn "." [overridingRule] >>= runPlan . planMoves
     it "Overriding paths should block the second move" $
       withFiles ["in/0.txt", "in/sub/0.txt"] moveAll
-        `shouldReturn` [ (Action "./in/0.txt" "out/0.txt", Done),
-                         (Action "./in/sub/0.txt" "out/0.txt", Existing)
+        `shouldReturn` [ (FsMove "./in/0.txt" "out/0.txt", Done),
+                         (FsMove "./in/sub/0.txt" "out/0.txt", Existing)
                        ]
     it "Overriding paths should keep the second file" $
       withFiles ["in/0.txt", "in/sub/0.txt"] (moveAll >> listFiles)
-        `shouldReturn` ["./out/0.txt", "./in/sub/0.txt"]
+        `shouldReturn` ["./in/sub/0.txt", "./out/0.txt"]
 
 withFiles :: [FilePath] -> IO a -> IO a
 withFiles files act =
@@ -68,7 +69,7 @@ rule0Jpg =
   Rule
     { name = "Image files",
       match = "**/*.jpg",
-      movers = [Mover "^.*/([^\\/]+)$" "out/pics/\\1"]
+      actions = [Move "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
 
 rule1All :: Rule
@@ -76,7 +77,7 @@ rule1All =
   Rule
     { name = "All files",
       match = "**/*",
-      movers = [Mover "pdf$" "PDF", Mover "txt$" "TXT", Mover "txt$" "TxT"]
+      actions = [Move "pdf$" "PDF", Move "txt$" "TXT", Move "txt$" "TxT"]
     }
 
 overridingRule :: Rule
@@ -84,8 +85,8 @@ overridingRule =
   Rule
     { name = "Text files",
       match = "**/*.txt",
-      movers = [Mover "^.*/([^\\/]+)$" "out/\\1"]
+      actions = [Move "^.*/([^\\/]+)$" "out/\\1"]
     }
 
 listFiles :: IO [FilePath]
-listFiles = glob "./**/*" >>= filterM doesFileExist
+listFiles = glob "./**/*" >>= fmap sort . filterM doesFileExist
