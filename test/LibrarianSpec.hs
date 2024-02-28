@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module LibrarianSpec
   ( main,
     spec,
@@ -5,8 +8,11 @@ module LibrarianSpec
 where
 
 import Control.Monad
+import Data.Function (on)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
+import Data.String (IsString (..))
+import Data.Time (addUTCTime, getCurrentTime, nominalDay, secondsToNominalDiffTime)
 import Librarian
 import System.Directory
 import System.EasyFile
@@ -120,23 +126,60 @@ spec = do
       it "Should copy and delete" $
         withFiles ["in/0.txt"] (mixed >> listFiles)
           `shouldReturn` ["./out/0.txt"]
+    describe "time-based" $ do
+      let timeBased = fetchRulesOn "." [removeAllMidOldTtxt] >>= runPlan . planActions
+      it "Should keep older and younger file" $
+        withFiles
+          [ "in/1.txt" {modificationTime = Just $ DaysAgo 1},
+            "in/7.txt" {modificationTime = Just $ DaysAgo 7},
+            "in/32.txt" {modificationTime = Just $ DaysAgo 32},
+            "in/32a.txt" {modificationTime = Just $ DaysAgo 32},
+            "in/32b.txt" {modificationTime = Just $ DaysAgo 32},
+            "in/101.txt" {modificationTime = Just $ DaysAgo 101}
+          ]
+          (timeBased >> listFiles)
+          `shouldReturn` ["./in/1.txt", "./in/101.txt", "./in/32.txt", "./in/7.txt"]
 
 -- * Utils
 
-withFiles :: [FilePath] -> IO a -> IO a
+data FileSpec = FileSpec
+  { path :: FilePath,
+    accessTime :: Maybe TimeSpec,
+    modificationTime :: Maybe TimeSpec
+  }
+  deriving stock (Eq, Show)
+
+instance IsString FileSpec where
+  fromString p =
+    FileSpec {path = p, accessTime = Nothing, modificationTime = Nothing}
+
+withFiles :: [FileSpec] -> IO a -> IO a
 withFiles files act =
   withSystemTempDirectory "librarian-tests" $ \d ->
     withCurrentDirectory d $ do
       mapM_ touch files
       act
 
-touch :: FilePath -> IO ()
+touch :: FileSpec -> IO ()
 touch target = do
-  createDirectoryIfMissing True $ fst $ splitFileName target
-  writeFile target "-"
+  createDirectoryIfMissing True $ fst $ splitFileName target.path
+  writeFile target.path "-"
+  let computeTime =
+        \case
+          HoursAgo d -> addUTCTime (secondsToNominalDiffTime $ (-1) * fromInteger d * 60 * 60) <$> getCurrentTime
+          DaysAgo d -> addUTCTime ((-1) * fromInteger d * nominalDay) <$> getCurrentTime
+          AbsoluteTime x -> return x
+  forM_ target.accessTime $ setAccessTime target.path <=< computeTime
+  forM_ target.modificationTime $ setModificationTime target.path <=< computeTime
 
 listFiles :: IO [FilePath]
 listFiles = glob "./**/*" >>= fmap sort . filterM doesFileExist
+
+instance Eq Rule where
+  (==) = (==) `on` show
+
+instance Eq ResolvedAction where
+  (==) = (==) `on` show
 
 -- * Fixtures
 
@@ -150,6 +193,8 @@ moveRule0Jpg =
   Rule
     { name = "Image files (move)",
       match = "**/*.jpg",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Move "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
 
@@ -158,6 +203,8 @@ moveRule1Any =
   Rule
     { name = "All files (move)",
       match = "**/*",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Move "pdf$" "PDF", Move "txt$" "TXT", Move "txt$" "TxT"]
     }
 
@@ -166,6 +213,8 @@ moveAllTxtRule =
   Rule
     { name = "Text files (move)",
       match = "**/*.txt",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Move "^.*/([^\\/]+)$" "out/\\1"]
     }
 
@@ -179,6 +228,8 @@ copyRule0Jpg =
   Rule
     { name = "Image files (copy)",
       match = "**/*.jpg",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Copy "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
 
@@ -187,6 +238,8 @@ copyRule1Any =
   Rule
     { name = "All files (copy)",
       match = "**/*",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Copy "pdf$" "PDF", Copy "txt$" "TXT", Copy "txt$" "TxT"]
     }
 
@@ -195,6 +248,8 @@ copyAllTxtRule =
   Rule
     { name = "Text files (copy)",
       match = "**/*.txt",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Copy "^.*/([^\\/]+)$" "out/\\1"]
     }
 
@@ -208,6 +263,8 @@ removeRule0Jpg =
   Rule
     { name = "Image files (remove)",
       match = "**/*.jpg",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Remove "^.*/([^\\/]+)$"]
     }
 
@@ -216,6 +273,8 @@ removeRule1Any =
   Rule
     { name = "All files (remove)",
       match = "**/*",
+      grouping = FileGroup,
+      filtering = AllF,
       actions = [Remove "pdf$", Remove "txt$", Remove "txt$"]
     }
 
@@ -224,5 +283,24 @@ removeAllTxtRule =
   Rule
     { name = "Text files (remove)",
       match = "**/*.txt",
+      grouping = FileGroup,
+      filtering = AllF,
+      actions = [Remove "^.*/([^\\/]+)$"]
+    }
+
+removeAllMidOldTtxt :: Rule
+removeAllMidOldTtxt =
+  Rule
+    { name = "Purge not-too-old text files",
+      match = "**/*.txt",
+      grouping =
+        Group
+          { groupSource = SourceDate ModificationTime,
+            groupBucket = Monthly,
+            groupSelection = After 0 SortingAsc (SourceDate ModificationTime)
+          },
+      filtering =
+        LtF (SourceDate ModificationTime) (SourceTime $ DaysAgo 31)
+          `AndF` GtF (SourceDate ModificationTime) (SourceTime $ DaysAgo 92),
       actions = [Remove "^.*/([^\\/]+)$"]
     }
