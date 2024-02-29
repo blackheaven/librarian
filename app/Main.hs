@@ -1,14 +1,16 @@
-module Main where
+module Main (main) where
 
+import Convert (convert)
 import qualified Dhall as Dhall
+import DhallTypes as DhallTypes
 import Librarian
 import Options.Applicative as Options
 
 main :: IO ()
 main = do
   args <- parseArgs
-  rules <- Dhall.inputFile (Dhall.auto @[Rule]) $ rulesFile args
-  plan <- planMoves <$> fetchRulesOn "." rules
+  rules <- map convert <$> Dhall.inputFile (Dhall.auto @[DhallTypes.Rule]) (rulesFile args)
+  plan <- planActions <$> fetchRulesOn "." rules
   displayPlan plan
   putStrLn "Move? (y/n)"
   response <- getChar

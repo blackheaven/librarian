@@ -17,12 +17,12 @@ library
   build-depends:
       base == 4.*
     , containers
-    , dhall
     , directory
     , easy-file
     , Glob
     , pretty-show
     , regexpr
+    , time
   hs-source-dirs: src
   exposed-modules:
       Librarian
@@ -83,7 +83,7 @@ test-suite librarian-test
       TypeApplications
       TypeFamilies
       TypeOperators
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+  ghc-options: -Werror -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
       base
     , librarian
@@ -95,12 +95,16 @@ test-suite librarian-test
     , hspec-core
     , hspec-discover
     , temporary
+    , time
   default-language: Haskell2010
 
-executable librarian
+executable librarian-exe
   -- type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: app
+  other-modules:
+    Convert
+    DhallTypes
   default-extensions:
       DataKinds
       DefaultSignatures
@@ -127,6 +131,9 @@ executable librarian
   build-depends:
       base
     , librarian
-    , dhall
+    , data-fix >= 0.3 && < 1
+    , dhall == 1.*
     , optparse-applicative
+    , recursion-schemes == 5.*
+    , time
   default-language: Haskell2010
