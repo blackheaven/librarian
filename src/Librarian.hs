@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-partial-fields #-}
+
 module Librarian
   ( Rule (..),
     RuleName (..),
@@ -10,7 +12,7 @@ module Librarian
 
     -- * Planning
     ResolvedAction (..),
-    planMoves,
+    planActions,
     displayPlan,
 
     -- * Runner
@@ -24,19 +26,16 @@ where
 
 import Control.Exception (catch)
 import Control.Monad
-import Data.Function (on)
-import Data.Functor (($>))
-import Data.List (find, nubBy, sortOn)
+import Data.Functor (($>), (<&>))
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
+import Data.Maybe (catMaybes, mapMaybe)
 import Data.String (IsString)
 import Dhall (FromDhall)
 import GHC.Generics (Generic)
-import System.Directory (createDirectoryIfMissing, doesFileExist, renameFile)
+import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, removeFile, renameFile)
 import System.EasyFile (splitFileName)
 import System.FilePath.Glob (compile, globDir)
 import Text.RegexPR
-import Text.Show.Pretty
 
 data Rule = Rule
   { name :: RuleName,
@@ -57,10 +56,10 @@ newtype Matcher = Matcher {matchPattern :: String}
   deriving newtype (Eq, Ord, Show, IsString)
   deriving (FromDhall) via String
 
-data Action = Move
-  { inputPattern :: String,
-    newName :: String
-  }
+data Action
+  = Move {inputPattern :: String, newName :: String}
+  | Copy {inputPattern :: String, newName :: String}
+  | Remove {inputPattern :: String}
   deriving stock (Eq, Show, Generic)
 
 instance FromDhall Action
@@ -75,46 +74,54 @@ fetchRulesOn root rules = do
   files <- mapM (filterM doesFileExist) matches
   return $ Map.unions $ map Map.fromList $ zipWith distributeRule files rules
 
-data ResolvedAction = ResolvedMove
-  { original :: FilePath,
-    new :: Maybe FilePath,
-    rule :: Rule
-  }
+data ResolvedAction
+  = ResolvedMove {original :: FilePath, new :: FilePath, rule :: Rule}
+  | ResolvedCopy {original :: FilePath, new :: FilePath, rule :: Rule}
+  | ResolvedRemove {original :: FilePath, rule :: Rule}
   deriving stock (Eq, Show, Generic)
 
-planMoves :: CollectedFiles -> [ResolvedAction]
-planMoves = map (uncurry planMove) . Map.toList
+planActions :: CollectedFiles -> [ResolvedAction]
+planActions = concatMap (take 1 . uncurry planAction) . Map.toList
   where
-    planMove :: FilePath -> Rule -> ResolvedAction
-    planMove p rule =
-      ResolvedMove
-        { original = p,
-          new = newPath p $ actions rule,
-          rule = rule
-        }
-    newPath :: FilePath -> [Action] -> Maybe FilePath
-    newPath p =
-      fmap (\action -> subRegexPR (inputPattern action) (newName action) p)
-        . find (isJust . flip matchRegexPR p . inputPattern)
+    planAction :: FilePath -> Rule -> [ResolvedAction]
+    planAction p rule = mapMaybe go $ actions rule
+      where
+        go :: Action -> Maybe ResolvedAction
+        go =
+          \case
+            Move {..} ->
+              newPath inputPattern newName
+                <&> \newPath' -> ResolvedMove {original = p, new = newPath', rule = rule}
+            Copy {..} ->
+              newPath inputPattern newName
+                <&> \newPath' -> ResolvedCopy {original = p, new = newPath', rule = rule}
+            Remove {..} ->
+              matchRegexPR inputPattern p
+                $> ResolvedRemove {original = p, rule = rule}
+        newPath :: String -> String -> Maybe FilePath
+        newPath inputPattern' newName' =
+          mfilter (/= p) $ Just $ subRegexPR inputPattern' newName' p
 
 displayPlan :: [ResolvedAction] -> IO ()
-displayPlan xs = do
-  forM_ xs $ \ResolvedMove {..} ->
-    putStrLn $ "[" <> getRuleName (name rule) <> "] '" <> original <> "' -> '" <> fromMaybe "UNABLE TO REPLACE" new <> "'"
-  let unrenamed = nubBy ((==) `on` name) $ sortOn name $ map rule $ filter (isNothing . new) xs
-  unless (null unrenamed) $ do
-    putStrLn "Unable to generate a new name for:"
-    forM_ unrenamed pPrint
+displayPlan =
+  mapM_ $ \case
+    ResolvedMove {..} ->
+      putStrLn $ "Move [" <> getRuleName (name rule) <> "] '" <> original <> "' -> '" <> new <> "'"
+    ResolvedCopy {..} ->
+      putStrLn $ "Copy [" <> getRuleName (name rule) <> "] '" <> original <> "' -> '" <> new <> "'"
+    ResolvedRemove {..} ->
+      putStrLn $ "Remove [" <> getRuleName (name rule) <> "] '" <> original <> "'"
 
-data FsAction = FsMove
-  { from :: FilePath,
-    to :: FilePath
-  }
+data FsAction
+  = FsMove {from :: FilePath, to :: FilePath}
+  | FsCopy {from :: FilePath, to :: FilePath}
+  | FsRemove {from :: FilePath}
   deriving stock (Eq, Show, Generic)
 
 data ActionResult
   = Done
   | Existing
+  | Missing
   | IOException IOError
   deriving stock (Eq, Show, Generic)
 
@@ -124,23 +131,59 @@ runPlan :: [ResolvedAction] -> IO RunResult
 runPlan = fmap catMaybes . run
   where
     run =
-      mapM $ \ResolvedMove {..} ->
-        case new of
-          Nothing -> return Nothing
-          Just newPath -> do
-            let fsAction = FsMove original newPath
-            existing <- doesFileExist newPath
-            if existing
-              then return $ Just (fsAction, Existing)
+      mapM $
+        \case
+          ResolvedMove {..} -> do
+            let fsAction = FsMove original new
+            originalPresent <- doesFileExist original
+            if not originalPresent
+              then return $ Just (fsAction, Missing)
               else do
-                prepareDirectory newPath
-                Just . (,) fsAction <$> ((renameFile original newPath $> Done) `catch` (return . IOException))
+                newPresent <- doesFileExist new
+                if newPresent
+                  then return $ Just (fsAction, Existing)
+                  else do
+                    prepareDirectory new
+                    Just . (,) fsAction <$> ((renameFile original new $> Done) `catch` (return . IOException))
+          ResolvedCopy {..} -> do
+            let fsAction = FsCopy original new
+            originalPresent <- doesFileExist original
+            if not originalPresent
+              then return $ Just (fsAction, Missing)
+              else do
+                newPresent <- doesFileExist new
+                if newPresent
+                  then return $ Just (fsAction, Existing)
+                  else do
+                    prepareDirectory new
+                    Just . (,) fsAction <$> ((copyFile original new $> Done) `catch` (return . IOException))
+          ResolvedRemove {..} -> do
+            let fsAction = FsRemove original
+            originalPresent <- doesFileExist original
+            if not originalPresent
+              then return $ Just (fsAction, Missing)
+              else Just . (,) fsAction <$> ((removeFile original $> Done) `catch` (return . IOException))
     prepareDirectory = createDirectoryIfMissing True . fst . splitFileName
 
 displayResult :: RunResult -> IO ()
 displayResult =
-  mapM_ $ \(FsMove {..}, result) ->
-    case result of
-      Done -> return ()
-      Existing -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' ALREADY EXISTING"
-      IOException e -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' IOError (" <> show e <> ")"
+  mapM_ $ \(action, result) ->
+    case action of
+      FsMove {..} ->
+        case result of
+          Done -> return ()
+          Existing -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' ALREADY EXISTING"
+          Missing -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' MISSING"
+          IOException e -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' IOError (" <> show e <> ")"
+      FsCopy {..} ->
+        case result of
+          Done -> return ()
+          Existing -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' ALREADY EXISTING"
+          Missing -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' MISSING"
+          IOException e -> putStrLn $ "'" <> from <> "' -> '" <> to <> "' IOError (" <> show e <> ")"
+      FsRemove {..} ->
+        case result of
+          Done -> return ()
+          Existing -> putStrLn $ "'" <> from <> "' ALREADY EXISTING (BUG)"
+          Missing -> putStrLn $ "'" <> from <> "' MISSING"
+          IOException e -> putStrLn $ "'" <> from <> "' IOError (" <> show e <> ")"

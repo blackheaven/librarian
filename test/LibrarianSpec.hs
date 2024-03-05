@@ -20,34 +20,97 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "fetchRulesOn" $ do
-    it "Empty target directory should be empty" $
-      withFiles [] (fetchRulesOn "." rules)
-        `shouldReturn` mempty
-    it "Text files only should match only all rule" $
-      withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." rules)
-        `shouldReturn` Map.fromList [("./in/sub/0.txt", rule1All), ("./in/1.txt", rule1All)]
-    it "Text/images files should match by priority" $
-      withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." rules)
-        `shouldReturn` Map.fromList [("./in/sub/0.jpg", rule0Jpg), ("./in/1.txt", rule1All)]
-  describe "planMoves" $ do
-    it "Images should be moved, texts should have their extension changed" $
-      planMoves (Map.fromList [("./in/sub/0.jpg", rule0Jpg), ("./in/1.txt", rule1All)])
-        `shouldBe` [ ResolvedMove "./in/1.txt" (Just "./in/1.TXT") rule1All,
-                     ResolvedMove "./in/sub/0.jpg" (Just "out/pics/0.jpg") rule0Jpg
-                   ]
-    it "Non-matching action should be nothing" $
-      planMoves (Map.fromList [("./in/1.png", rule1All)])
-        `shouldBe` [ResolvedMove "./in/1.png" Nothing rule1All]
+    describe "move" $ do
+      it "Empty target directory should be empty" $
+        withFiles [] (fetchRulesOn "." moveRules)
+          `shouldReturn` mempty
+      it "Text files only should match only all rule" $
+        withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." moveRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", moveRule1Any), ("./in/1.txt", moveRule1Any)]
+      it "Text/images files should match by priority" $
+        withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." moveRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", moveRule0Jpg), ("./in/1.txt", moveRule1Any)]
+    describe "copy" $ do
+      it "Empty target directory should be empty" $
+        withFiles [] (fetchRulesOn "." copyRules)
+          `shouldReturn` mempty
+      it "Text files only should match only all rule" $
+        withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." copyRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", copyRule1Any), ("./in/1.txt", copyRule1Any)]
+      it "Text/images files should match by priority" $
+        withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." copyRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", copyRule0Jpg), ("./in/1.txt", copyRule1Any)]
+    describe "remove" $ do
+      it "Empty target directory should be empty" $
+        withFiles [] (fetchRulesOn "." removeRules)
+          `shouldReturn` mempty
+      it "Text files only should match only all rule" $
+        withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." removeRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", removeRule1Any), ("./in/1.txt", removeRule1Any)]
+      it "Text/images files should match by priority" $
+        withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." removeRules)
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", removeRule0Jpg), ("./in/1.txt", removeRule1Any)]
+  describe "planActions" $ do
+    describe "move" $ do
+      it "Images should be moved, texts should have their extension changed" $
+        planActions (Map.fromList [("./in/sub/0.jpg", moveRule0Jpg), ("./in/1.txt", moveRule1Any)])
+          `shouldBe` [ ResolvedMove "./in/1.txt" "./in/1.TXT" moveRule1Any,
+                       ResolvedMove "./in/sub/0.jpg" "out/pics/0.jpg" moveRule0Jpg
+                     ]
+      it "Non-matching action should be nothing" $
+        planActions (Map.fromList [("./in/1.png", moveRule1Any)])
+          `shouldBe` []
+    describe "copy" $ do
+      it "Images should be copyd, texts should have their extension changed" $
+        planActions (Map.fromList [("./in/sub/0.jpg", copyRule0Jpg), ("./in/1.txt", copyRule1Any)])
+          `shouldBe` [ ResolvedCopy "./in/1.txt" "./in/1.TXT" copyRule1Any,
+                       ResolvedCopy "./in/sub/0.jpg" "out/pics/0.jpg" copyRule0Jpg
+                     ]
+      it "Non-matching action should be nothing" $
+        planActions (Map.fromList [("./in/1.png", copyRule1Any)])
+          `shouldBe` []
+    describe "remove" $ do
+      it "Images should be removed, texts should have their extension changed" $
+        planActions (Map.fromList [("./in/sub/0.jpg", removeRule0Jpg), ("./in/1.txt", removeRule1Any)])
+          `shouldBe` [ ResolvedRemove "./in/1.txt" removeRule1Any,
+                       ResolvedRemove "./in/sub/0.jpg" removeRule0Jpg
+                     ]
+      it "Non-matching action should be nothing" $
+        planActions (Map.fromList [("./in/1.png", removeRule1Any)])
+          `shouldBe` []
   describe "runPlan" $ do
-    let moveAll = fetchRulesOn "." [overridingRule] >>= runPlan . planMoves
-    it "Overriding paths should block the second move" $
-      withFiles ["in/0.txt", "in/sub/0.txt"] moveAll
-        `shouldReturn` [ (FsMove "./in/0.txt" "out/0.txt", Done),
-                         (FsMove "./in/sub/0.txt" "out/0.txt", Existing)
-                       ]
-    it "Overriding paths should keep the second file" $
-      withFiles ["in/0.txt", "in/sub/0.txt"] (moveAll >> listFiles)
-        `shouldReturn` ["./in/sub/0.txt", "./out/0.txt"]
+    describe "move" $ do
+      let moveAll = fetchRulesOn "." [moveAllTxtRule] >>= runPlan . planActions
+      it "Overriding paths should block the second move" $
+        withFiles ["in/0.txt", "in/sub/0.txt"] moveAll
+          `shouldReturn` [ (FsMove "./in/0.txt" "out/0.txt", Done),
+                           (FsMove "./in/sub/0.txt" "out/0.txt", Existing)
+                         ]
+      it "Overriding paths should keep the second file" $
+        withFiles ["in/0.txt", "in/sub/0.txt"] (moveAll >> listFiles)
+          `shouldReturn` ["./in/sub/0.txt", "./out/0.txt"]
+    describe "copy" $ do
+      let copyAll = fetchRulesOn "." [copyAllTxtRule] >>= runPlan . planActions
+      it "Overriding paths should block the second copy" $
+        withFiles ["in/0.txt", "in/sub/0.txt"] copyAll
+          `shouldReturn` [ (FsCopy "./in/0.txt" "out/0.txt", Done),
+                           (FsCopy "./in/sub/0.txt" "out/0.txt", Existing)
+                         ]
+      it "Overriding paths should keep the second file" $
+        withFiles ["in/0.txt", "in/sub/0.txt"] (copyAll >> listFiles)
+          `shouldReturn` ["./in/0.txt", "./in/sub/0.txt", "./out/0.txt"]
+    describe "remove" $ do
+      let removeAll = fetchRulesOn "." [removeAllTxtRule] >>= runPlan . planActions
+      it "Should keep the non-matching file" $
+        withFiles ["in/0.txt", "in/sub/0.txt", "in/0.jpg"] removeAll
+          `shouldReturn` [ (FsRemove "./in/0.txt", Done),
+                           (FsRemove "./in/sub/0.txt", Done)
+                         ]
+      it "Should keep the non-matching file" $
+        withFiles ["in/0.txt", "in/sub/0.txt", "in/0.jpg"] (removeAll >> listFiles)
+          `shouldReturn` ["./in/0.jpg"]
+
+-- * Utils
 
 withFiles :: [FilePath] -> IO a -> IO a
 withFiles files act =
@@ -61,32 +124,94 @@ touch target = do
   createDirectoryIfMissing True $ fst $ splitFileName target
   writeFile target "-"
 
-rules :: [Rule]
-rules = [rule0Jpg, rule1All]
+listFiles :: IO [FilePath]
+listFiles = glob "./**/*" >>= fmap sort . filterM doesFileExist
 
-rule0Jpg :: Rule
-rule0Jpg =
+-- * Fixtures
+
+-- ** move
+
+moveRules :: [Rule]
+moveRules = [moveRule0Jpg, moveRule1Any]
+
+moveRule0Jpg :: Rule
+moveRule0Jpg =
   Rule
     { name = "Image files",
       match = "**/*.jpg",
       actions = [Move "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
 
-rule1All :: Rule
-rule1All =
+moveRule1Any :: Rule
+moveRule1Any =
   Rule
     { name = "All files",
       match = "**/*",
       actions = [Move "pdf$" "PDF", Move "txt$" "TXT", Move "txt$" "TxT"]
     }
 
-overridingRule :: Rule
-overridingRule =
+moveAllTxtRule :: Rule
+moveAllTxtRule =
   Rule
     { name = "Text files",
       match = "**/*.txt",
       actions = [Move "^.*/([^\\/]+)$" "out/\\1"]
     }
 
-listFiles :: IO [FilePath]
-listFiles = glob "./**/*" >>= fmap sort . filterM doesFileExist
+-- ** copy
+
+copyRules :: [Rule]
+copyRules = [copyRule0Jpg, copyRule1Any]
+
+copyRule0Jpg :: Rule
+copyRule0Jpg =
+  Rule
+    { name = "Image files",
+      match = "**/*.jpg",
+      actions = [Copy "^.*/([^\\/]+)$" "out/pics/\\1"]
+    }
+
+copyRule1Any :: Rule
+copyRule1Any =
+  Rule
+    { name = "All files",
+      match = "**/*",
+      actions = [Copy "pdf$" "PDF", Copy "txt$" "TXT", Copy "txt$" "TxT"]
+    }
+
+copyAllTxtRule :: Rule
+copyAllTxtRule =
+  Rule
+    { name = "Text files",
+      match = "**/*.txt",
+      actions = [Copy "^.*/([^\\/]+)$" "out/\\1"]
+    }
+
+-- ** remove
+
+removeRules :: [Rule]
+removeRules = [removeRule0Jpg, removeRule1Any]
+
+removeRule0Jpg :: Rule
+removeRule0Jpg =
+  Rule
+    { name = "Image files",
+      match = "**/*.jpg",
+      actions = [Remove "^.*/([^\\/]+)$"]
+    }
+
+removeRule1Any :: Rule
+removeRule1Any =
+  Rule
+    { name = "All files",
+      match = "**/*",
+      actions = [Remove "pdf$", Remove "txt$", Remove "txt$"]
+    }
+
+removeAllTxtRule :: Rule
+removeAllTxtRule =
+  Rule
+    { name = "Text files",
+      match = "**/*.txt",
+      actions = [Remove "^.*/([^\\/]+)$"]
+    }
