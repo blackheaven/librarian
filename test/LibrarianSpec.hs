@@ -26,58 +26,64 @@ spec = do
           `shouldReturn` mempty
       it "Text files only should match only all rule" $
         withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." moveRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.txt", moveRule1Any), ("./in/1.txt", moveRule1Any)]
-      it "Text/images files should match by priority" $
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", [moveRule1Any]), ("./in/1.txt", [moveRule1Any])]
+      it "Text/images files should match twice" $
         withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." moveRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.jpg", moveRule0Jpg), ("./in/1.txt", moveRule1Any)]
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", [moveRule0Jpg, moveRule1Any]), ("./in/1.txt", [moveRule1Any])]
     describe "copy" $ do
       it "Empty target directory should be empty" $
         withFiles [] (fetchRulesOn "." copyRules)
           `shouldReturn` mempty
       it "Text files only should match only all rule" $
         withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." copyRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.txt", copyRule1Any), ("./in/1.txt", copyRule1Any)]
-      it "Text/images files should match by priority" $
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", [copyRule1Any]), ("./in/1.txt", [copyRule1Any])]
+      it "Text/images files should match twice" $
         withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." copyRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.jpg", copyRule0Jpg), ("./in/1.txt", copyRule1Any)]
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", [copyRule0Jpg, copyRule1Any]), ("./in/1.txt", [copyRule1Any])]
     describe "remove" $ do
       it "Empty target directory should be empty" $
         withFiles [] (fetchRulesOn "." removeRules)
           `shouldReturn` mempty
       it "Text files only should match only all rule" $
         withFiles ["in/sub/0.txt", "in/1.txt"] (fetchRulesOn "." removeRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.txt", removeRule1Any), ("./in/1.txt", removeRule1Any)]
-      it "Text/images files should match by priority" $
+          `shouldReturn` Map.fromList [("./in/sub/0.txt", [removeRule1Any]), ("./in/1.txt", [removeRule1Any])]
+      it "Text/images files should match twice" $
         withFiles ["in/sub/0.jpg", "in/1.txt"] (fetchRulesOn "." removeRules)
-          `shouldReturn` Map.fromList [("./in/sub/0.jpg", removeRule0Jpg), ("./in/1.txt", removeRule1Any)]
+          `shouldReturn` Map.fromList [("./in/sub/0.jpg", [removeRule0Jpg, removeRule1Any]), ("./in/1.txt", [removeRule1Any])]
   describe "planActions" $ do
     describe "move" $ do
       it "Images should be moved, texts should have their extension changed" $
-        planActions (Map.fromList [("./in/sub/0.jpg", moveRule0Jpg), ("./in/1.txt", moveRule1Any)])
+        planActions (Map.fromList [("./in/sub/0.jpg", [moveRule0Jpg]), ("./in/1.txt", [moveRule1Any])])
           `shouldBe` [ ResolvedMove "./in/1.txt" "./in/1.TXT" moveRule1Any,
                        ResolvedMove "./in/sub/0.jpg" "out/pics/0.jpg" moveRule0Jpg
                      ]
       it "Non-matching action should be nothing" $
-        planActions (Map.fromList [("./in/1.png", moveRule1Any)])
+        planActions (Map.fromList [("./in/1.png", [moveRule1Any])])
           `shouldBe` []
     describe "copy" $ do
       it "Images should be copyd, texts should have their extension changed" $
-        planActions (Map.fromList [("./in/sub/0.jpg", copyRule0Jpg), ("./in/1.txt", copyRule1Any)])
+        planActions (Map.fromList [("./in/sub/0.jpg", [copyRule0Jpg]), ("./in/1.txt", [copyRule1Any])])
           `shouldBe` [ ResolvedCopy "./in/1.txt" "./in/1.TXT" copyRule1Any,
                        ResolvedCopy "./in/sub/0.jpg" "out/pics/0.jpg" copyRule0Jpg
                      ]
       it "Non-matching action should be nothing" $
-        planActions (Map.fromList [("./in/1.png", copyRule1Any)])
+        planActions (Map.fromList [("./in/1.png", [copyRule1Any])])
           `shouldBe` []
     describe "remove" $ do
-      it "Images should be removed, texts should have their extension changed" $
-        planActions (Map.fromList [("./in/sub/0.jpg", removeRule0Jpg), ("./in/1.txt", removeRule1Any)])
+      it "Images should be removed" $
+        planActions (Map.fromList [("./in/sub/0.jpg", [removeRule0Jpg]), ("./in/1.txt", [removeRule1Any])])
           `shouldBe` [ ResolvedRemove "./in/1.txt" removeRule1Any,
                        ResolvedRemove "./in/sub/0.jpg" removeRule0Jpg
                      ]
       it "Non-matching action should be nothing" $
-        planActions (Map.fromList [("./in/1.png", removeRule1Any)])
+        planActions (Map.fromList [("./in/1.png", [removeRule1Any])])
           `shouldBe` []
+    describe "mixed" $ do
+      it "Images should be copied and removed, texts should have their extension changed" $
+        planActions (Map.fromList [("./in/sub/0.jpg", [copyRule0Jpg, removeRule0Jpg])])
+          `shouldBe` [ ResolvedCopy "./in/sub/0.jpg" "out/pics/0.jpg" copyRule0Jpg,
+                       ResolvedRemove "./in/sub/0.jpg" removeRule0Jpg
+                     ]
   describe "runPlan" $ do
     describe "move" $ do
       let moveAll = fetchRulesOn "." [moveAllTxtRule] >>= runPlan . planActions
@@ -109,6 +115,11 @@ spec = do
       it "Should keep the non-matching file" $
         withFiles ["in/0.txt", "in/sub/0.txt", "in/0.jpg"] (removeAll >> listFiles)
           `shouldReturn` ["./in/0.jpg"]
+    describe "mixed" $ do
+      let mixed = fetchRulesOn "." [copyAllTxtRule, removeAllTxtRule] >>= runPlan . planActions
+      it "Should copy and delete" $
+        withFiles ["in/0.txt"] (mixed >> listFiles)
+          `shouldReturn` ["./out/0.txt"]
 
 -- * Utils
 
@@ -137,7 +148,7 @@ moveRules = [moveRule0Jpg, moveRule1Any]
 moveRule0Jpg :: Rule
 moveRule0Jpg =
   Rule
-    { name = "Image files",
+    { name = "Image files (move)",
       match = "**/*.jpg",
       actions = [Move "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
@@ -145,7 +156,7 @@ moveRule0Jpg =
 moveRule1Any :: Rule
 moveRule1Any =
   Rule
-    { name = "All files",
+    { name = "All files (move)",
       match = "**/*",
       actions = [Move "pdf$" "PDF", Move "txt$" "TXT", Move "txt$" "TxT"]
     }
@@ -153,7 +164,7 @@ moveRule1Any =
 moveAllTxtRule :: Rule
 moveAllTxtRule =
   Rule
-    { name = "Text files",
+    { name = "Text files (move)",
       match = "**/*.txt",
       actions = [Move "^.*/([^\\/]+)$" "out/\\1"]
     }
@@ -166,7 +177,7 @@ copyRules = [copyRule0Jpg, copyRule1Any]
 copyRule0Jpg :: Rule
 copyRule0Jpg =
   Rule
-    { name = "Image files",
+    { name = "Image files (copy)",
       match = "**/*.jpg",
       actions = [Copy "^.*/([^\\/]+)$" "out/pics/\\1"]
     }
@@ -174,7 +185,7 @@ copyRule0Jpg =
 copyRule1Any :: Rule
 copyRule1Any =
   Rule
-    { name = "All files",
+    { name = "All files (copy)",
       match = "**/*",
       actions = [Copy "pdf$" "PDF", Copy "txt$" "TXT", Copy "txt$" "TxT"]
     }
@@ -182,7 +193,7 @@ copyRule1Any =
 copyAllTxtRule :: Rule
 copyAllTxtRule =
   Rule
-    { name = "Text files",
+    { name = "Text files (copy)",
       match = "**/*.txt",
       actions = [Copy "^.*/([^\\/]+)$" "out/\\1"]
     }
@@ -195,7 +206,7 @@ removeRules = [removeRule0Jpg, removeRule1Any]
 removeRule0Jpg :: Rule
 removeRule0Jpg =
   Rule
-    { name = "Image files",
+    { name = "Image files (remove)",
       match = "**/*.jpg",
       actions = [Remove "^.*/([^\\/]+)$"]
     }
@@ -203,7 +214,7 @@ removeRule0Jpg =
 removeRule1Any :: Rule
 removeRule1Any =
   Rule
-    { name = "All files",
+    { name = "All files (remove)",
       match = "**/*",
       actions = [Remove "pdf$", Remove "txt$", Remove "txt$"]
     }
@@ -211,7 +222,7 @@ removeRule1Any =
 removeAllTxtRule :: Rule
 removeAllTxtRule =
   Rule
-    { name = "Text files",
+    { name = "Text files (remove)",
       match = "**/*.txt",
       actions = [Remove "^.*/([^\\/]+)$"]
     }

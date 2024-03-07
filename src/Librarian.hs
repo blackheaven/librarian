@@ -26,9 +26,11 @@ where
 
 import Control.Exception (catch)
 import Control.Monad
+import Data.Foldable (Foldable (toList))
 import Data.Functor (($>), (<&>))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, mapMaybe)
+import Data.Sequence (Seq)
 import Data.String (IsString)
 import Dhall (FromDhall)
 import GHC.Generics (Generic)
@@ -64,15 +66,15 @@ data Action
 
 instance FromDhall Action
 
-type CollectedFiles = Map.Map FilePath Rule
+type CollectedFiles = Map.Map FilePath (Seq Rule)
 
 fetchRulesOn :: FilePath -> [Rule] -> IO CollectedFiles
 fetchRulesOn root rules = do
   matches <- globDir (compile . matchPattern . match <$> rules) root
-  let distributeRule :: [FilePath] -> Rule -> [(FilePath, Rule)]
-      distributeRule fs r = map (\f -> (f, r)) fs
+  let distributeRule :: [FilePath] -> Rule -> [(FilePath, Seq Rule)]
+      distributeRule fs r = map (\f -> (f, [r])) fs
   files <- mapM (filterM doesFileExist) matches
-  return $ Map.unions $ map Map.fromList $ zipWith distributeRule files rules
+  return $ Map.unionsWith (<>) $ map Map.fromList $ zipWith distributeRule files rules
 
 data ResolvedAction
   = ResolvedMove {original :: FilePath, new :: FilePath, rule :: Rule}
@@ -81,7 +83,7 @@ data ResolvedAction
   deriving stock (Eq, Show, Generic)
 
 planActions :: CollectedFiles -> [ResolvedAction]
-planActions = concatMap (take 1 . uncurry planAction) . Map.toList
+planActions = concatMap (take 1 . uncurry planAction) . concatMap (traverse toList) . Map.toList
   where
     planAction :: FilePath -> Rule -> [ResolvedAction]
     planAction p rule = mapMaybe go $ actions rule
