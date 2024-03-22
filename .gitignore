@@ -27,3 +27,4 @@ bin-*
 
 result
 .direnv
+.env
