@@ -23,7 +23,7 @@ main = do
       maybe id withCurrentDirectory runRoot $ do
         plan <- planActions <$> fetchRulesOn "." rules
         displayPlan plan
-        putStrLn "Move? (y/n)"
+        putStrLn "Perform? (y/n)"
         response <- getChar
         case response of
           'y' -> do

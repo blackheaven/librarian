@@ -24,13 +24,13 @@ in  [ L.Rule::{
 
 ```
 $ librarian -r examples/cctv.dhall
-[All footages] './CCTV/garage/220520.mp4' -> './sorted/220520/garage.mp4'
-[All footages] './CCTV/garage/220521.mp4' -> './sorted/220521/garage.mp4'
-[All footages] './CCTV/garage/220522.mp4' -> './sorted/220522/garage.mp4'
-[All footages] './CCTV/garage/220523.mp4' -> './sorted/220523/garage.mp4'
-[All footages] './CCTV/garden/220520.mp4' -> './sorted/220520/garden.mp4'
-[All footages] './CCTV/garden/220521.mp4' -> './sorted/220521/garden.mp4'
-[All footages] './CCTV/garden/220522.mp4' -> './sorted/220522/garden.mp4'
-[All footages] './CCTV/garden/220523.mp4' -> './sorted/220523/garden.mp4'
-Move? (y/n)
+Move [All footages] './CCTV/garage/220520.mp4' -> './sorted/220520/garage.mp4'
+Move [All footages] './CCTV/garage/220521.mp4' -> './sorted/220521/garage.mp4'
+Move [All footages] './CCTV/garage/220522.mp4' -> './sorted/220522/garage.mp4'
+Move [All footages] './CCTV/garage/220523.mp4' -> './sorted/220523/garage.mp4'
+Move [All footages] './CCTV/garden/220520.mp4' -> './sorted/220520/garden.mp4'
+Move [All footages] './CCTV/garden/220521.mp4' -> './sorted/220521/garden.mp4'
+Move [All footages] './CCTV/garden/220522.mp4' -> './sorted/220522/garden.mp4'
+Move [All footages] './CCTV/garden/220523.mp4' -> './sorted/220523/garden.mp4'
+Perform? (y/n)
 ```
