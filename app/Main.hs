@@ -23,14 +23,17 @@ main = do
       maybe id withCurrentDirectory runRoot $ do
         plan <- planActions <$> fetchRulesOn "." rules
         displayPlan plan
-        putStrLn "Perform? (y/n)"
-        response <- getChar
-        case response of
-          'y' -> do
-            putStrLn "Proceeding"
-            runPlan plan >>= displayResult
-            putStrLn "Done."
-          _ -> putStrLn "Aborting"
+        case plan of
+          [] -> putStrLn "Nothing to do"
+          _ -> do
+            putStrLn "Perform? (y/n)"
+            response <- getChar
+            case response of
+              'y' -> do
+                putStrLn "Proceeding"
+                runPlan plan >>= displayResult
+                putStrLn "Done."
+              _ -> putStrLn "Aborting"
 
 parseArgs :: IO Args
 parseArgs =
