@@ -131,9 +131,10 @@ executable librarian-exe
   build-depends:
       base
     , librarian
-    , data-fix >= 0.3 && < 1
     , dhall == 1.*
+    , directory
+    , either == 5.*
     , optparse-applicative
-    , recursion-schemes == 5.*
+    , text
     , time
   default-language: Haskell2010

@@ -2,8 +2,7 @@
 
 module Convert (convert) where
 
-import qualified Data.Fix as Fix
-import qualified Data.Functor.Foldable as Foldable
+import Data.Foldable (Foldable (foldl'))
 import Data.Time (UTCTime)
 import qualified DhallTypes as S
 import qualified Librarian as T
@@ -29,16 +28,17 @@ convertGrouping =
           groupSelection = convertGroupSelectionTemporal selection
         }
 
-convertFiltering :: Fix.Fix S.FilteringF -> T.Filtering
-convertFiltering = go . Fix.foldFix Foldable.embed
+convertFiltering :: S.Filtering -> T.Filtering
+convertFiltering =
+  \case
+    S.All -> T.AllF
+    S.Ands xs -> foldl' T.AndF T.AllF $ map convertFilteringCondition xs
+    S.Ors xs -> foldl' T.OrF T.AllF $ map convertFilteringCondition xs
   where
-    go =
+    convertFilteringCondition =
       \case
-        S.AllF -> T.AllF
-        S.AndF x y -> T.AndF (go x) (go y)
-        S.OrF x y -> T.OrF (go x) (go y)
-        S.GtFTemporal x y -> T.GtF (convertSourceTemporal x) (convertSourceTemporal y)
-        S.LtFTemporal x y -> T.LtF (convertSourceTemporal x) (convertSourceTemporal y)
+        S.GtTemporalF x y -> T.GtF (convertSourceTemporal x) (convertSourceTemporal y)
+        S.LtTemporalF x y -> T.LtF (convertSourceTemporal x) (convertSourceTemporal y)
 
 convertAction :: S.Action -> T.Action
 convertAction =
@@ -85,7 +85,3 @@ convertTimeSpec =
     S.HoursAgo x -> T.HoursAgo x
     S.DaysAgo x -> T.DaysAgo x
     S.AbsoluteTime x -> T.AbsoluteTime x
-
--- convertXX :: S.XX -> T.XX
--- convertXX =
---   \case {}
