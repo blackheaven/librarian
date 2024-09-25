@@ -58,6 +58,7 @@ import Data.Time
 import GHC.Generics (Generic)
 import System.Directory
   ( copyFile,
+    copyFileWithMetadata,
     createDirectoryIfMissing,
     doesFileExist,
     getAccessTime,
@@ -295,7 +296,8 @@ runPlan = fmap catMaybes . run
                   then return $ Just (fsAction, Existing)
                   else do
                     prepareDirectory new
-                    Just . (,) fsAction <$> ((renameFile original new $> Done) `catch` (return . IOException))
+                    let resillientMove from to = renameFile from to `catch` const @_ @IOError (copyFileWithMetadata from to >> removeFile from)
+                    Just . (,) fsAction <$> ((resillientMove original new $> Done) `catch` (return . IOException))
           ResolvedCopy {..} -> do
             let fsAction = FsCopy original new
             originalPresent <- doesFileExist original
