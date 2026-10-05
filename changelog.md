@@ -1,5 +1,10 @@
 # Librarian
 
+## 0.2.0.1
+
+* Rename executable `librarian-exe` to `librarian` and test-suite to `spec`
+* Add PVP upper bounds to dependencies
+
 ## 0.2.0.0
 
 * Replace `regexpr` with `pcre2`. Replacement strings now use `$N` instead of `\N`

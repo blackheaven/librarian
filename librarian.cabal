@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                librarian
-version:             0.2.0.0
+version:             0.2.0.1
 author:              Gautier DI FOLCO
 maintainer:          gautier.difolco@gmail.com
 category:            Data
@@ -19,14 +19,14 @@ library
   default-language:   Haskell2010
   build-depends:
       base == 4.*
-    , containers
-    , directory
-    , easy-file
-    , Glob
-    , pcre2
-    , pretty-show
-    , text
-    , time
+    , containers < 0.9
+    , directory < 1.4
+    , easy-file < 0.3
+    , Glob < 0.11
+    , pcre2 < 2.4
+    , pretty-show < 1.11
+    , text < 2.2
+    , time < 1.17
   hs-source-dirs: src
   exposed-modules:
       Librarian
@@ -57,7 +57,7 @@ library
       TypeOperators
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
 
-test-suite librarian-test
+test-suite spec
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: Spec.hs
@@ -90,21 +90,20 @@ test-suite librarian-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   -- ghc-options: -Werror -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base
+      base == 4.*
     , librarian
-    , containers
-    , directory
-    , easy-file
-    , Glob
-    , hspec
-    , hspec-core
-    , hspec-discover
-    , temporary
-    , time
+    , containers < 0.9
+    , directory < 1.4
+    , easy-file < 0.3
+    , Glob < 0.11
+    , hspec < 2.12
+    , hspec-core < 2.12
+    , hspec-discover < 2.12
+    , temporary < 1.4
+    , time < 1.17
   default-language: Haskell2010
 
-executable librarian-exe
-  -- type: exitcode-stdio-1.0
+executable librarian
   main-is: Main.hs
   hs-source-dirs: app
   other-modules:
@@ -134,12 +133,12 @@ executable librarian-exe
       TypeOperators
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base
+      base == 4.*
     , librarian
     , dhall == 1.*
-    , directory
+    , directory < 1.4
     , either == 5.*
-    , optparse-applicative
-    , text
-    , time
+    , optparse-applicative < 0.20
+    , text < 2.2
+    , time < 1.17
   default-language: Haskell2010
