@@ -15,7 +15,7 @@ in  [ L.Rule::{
       , actions =
         [ L.Action.Type.Move
             { inputPattern = "CCTV/(.*)/(\\d+)\\.mp4"
-            , newName = "sorted/\\2/\\1.mp4"
+            , newName = "sorted/$2/$1.mp4"
             }
         ]
       }

@@ -195,7 +195,7 @@ moveRule0Jpg =
       match = "**/*.jpg",
       grouping = FileGroup,
       filtering = AllF,
-      actions = [Move "^.*/([^\\/]+)$" "out/pics/\\1"]
+      actions = [Move "^.*/([^\\/]+)$" "out/pics/$1"]
     }
 
 moveRule1Any :: Rule
@@ -215,7 +215,7 @@ moveAllTxtRule =
       match = "**/*.txt",
       grouping = FileGroup,
       filtering = AllF,
-      actions = [Move "^.*/([^\\/]+)$" "out/\\1"]
+      actions = [Move "^.*/([^\\/]+)$" "out/$1"]
     }
 
 -- ** copy
@@ -230,7 +230,7 @@ copyRule0Jpg =
       match = "**/*.jpg",
       grouping = FileGroup,
       filtering = AllF,
-      actions = [Copy "^.*/([^\\/]+)$" "out/pics/\\1"]
+      actions = [Copy "^.*/([^\\/]+)$" "out/pics/$1"]
     }
 
 copyRule1Any :: Rule
@@ -250,7 +250,7 @@ copyAllTxtRule =
       match = "**/*.txt",
       grouping = FileGroup,
       filtering = AllF,
-      actions = [Copy "^.*/([^\\/]+)$" "out/\\1"]
+      actions = [Copy "^.*/([^\\/]+)$" "out/$1"]
     }
 
 -- ** remove

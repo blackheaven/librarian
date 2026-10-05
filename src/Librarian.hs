@@ -46,6 +46,7 @@ import Data.Maybe (catMaybes, mapMaybe)
 import Data.Ord (Down (Down))
 import Data.Sequence (Seq)
 import Data.String (IsString)
+import qualified Data.Text as Text
 import Data.Time
   ( UTCTime,
     addUTCTime,
@@ -68,7 +69,7 @@ import System.Directory
   )
 import System.EasyFile (splitFileName)
 import System.FilePath.Glob (compile, globDir)
-import Text.RegexPR
+import qualified Text.Regex.Pcre2 as Pcre2
 
 data Rule = Rule
   { name :: RuleName,
@@ -91,12 +92,13 @@ data Action
   = Move {inputPattern :: String, newName :: String}
   | Copy {inputPattern :: String, newName :: String}
   | Remove {inputPattern :: String}
+  | Bundle {subAction :: [Action]}
   deriving stock (Eq, Show, Generic)
 
 data Grouping
   = FileGroup
   | forall a.
-    Ord a =>
+    (Ord a) =>
     Group
       { groupSource :: Source a,
         groupBucket :: GroupingBucket a,
@@ -109,8 +111,8 @@ data Filtering
   = AllF
   | AndF Filtering Filtering
   | OrF Filtering Filtering
-  | forall a. Ord a => GtF (Source a) (Source a)
-  | forall a. Ord a => LtF (Source a) (Source a)
+  | forall a. (Ord a) => GtF (Source a) (Source a)
+  | forall a. (Ord a) => LtF (Source a) (Source a)
 
 deriving stock instance Show Filtering
 
@@ -189,7 +191,7 @@ fetchRulesOn root rules = do
                 fetchBucket :: Source x -> FilePath -> IO String
                 fetchBucket source file =
                   bucket source <$> fetchSource source file
-                sorting :: Ord x => SortingOrder -> [(x, FilePath)] -> [(x, FilePath)]
+                sorting :: (Ord x) => SortingOrder -> [(x, FilePath)] -> [(x, FilePath)]
                 sorting =
                   \case
                     SortingAsc -> sortOn fst
@@ -248,11 +250,11 @@ planActions = concatMap (take 1 . uncurry planAction) . concatMap (traverse toLi
               newPath inputPattern newName
                 <&> \newPath' -> ResolvedCopy {original = p, new = newPath', rule = rule}
             Remove {..} ->
-              matchRegexPR inputPattern p
+              guard (Pcre2.matches (Text.pack inputPattern) (Text.pack p))
                 $> ResolvedRemove {original = p, rule = rule}
         newPath :: String -> String -> Maybe FilePath
         newPath inputPattern' newName' =
-          mfilter (/= p) $ Just $ subRegexPR inputPattern' newName' p
+          mfilter (/= p) $ Just $ Text.unpack $ Pcre2.sub (Text.pack inputPattern') (Text.pack newName') (Text.pack p)
 
 displayPlan :: [ResolvedAction] -> IO ()
 displayPlan =

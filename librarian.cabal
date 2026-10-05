@@ -1,6 +1,6 @@
 cabal-version:       3.0
 name:                librarian
-version:             0.1.0.1
+version:             0.2.0.0
 author:              Gautier DI FOLCO
 maintainer:          gautier.difolco@gmail.com
 category:            Data
@@ -23,8 +23,9 @@ library
     , directory
     , easy-file
     , Glob
+    , pcre2
     , pretty-show
-    , regexpr
+    , text
     , time
   hs-source-dirs: src
   exposed-modules:
